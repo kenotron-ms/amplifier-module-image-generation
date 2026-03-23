@@ -238,15 +238,18 @@ class DalleClient:
 
 
 class GptImageClient:
-    """Client for OpenAI GPT-Image-1 API."""
+    """Client for OpenAI GPT-Image-1.5 API.
+    
+    Supports transparent backgrounds via background="transparent" parameter.
+    """
 
     api_name = "gptimage"
 
     COST_PER_IMAGE = {
-        "low": 0.020,
-        "medium": 0.040,
-        "high": 0.080,
-        "auto": 0.040,
+        "low": 0.016,   # 20% cheaper than gpt-image-1
+        "medium": 0.032,
+        "high": 0.064,
+        "auto": 0.032,
     }
 
     def __init__(self):
@@ -262,12 +265,13 @@ class GptImageClient:
         output_path: Path,
         params: dict | None = None,
     ) -> tuple[str, float]:
-        """Generate an image using GPT-Image-1.
+        """Generate an image using GPT-Image-1.5.
 
         Args:
             prompt: Text description of the image to generate
             output_path: Path where the generated image should be saved
-            params: Optional parameters (quality, size)
+            params: Optional parameters (quality, size, background)
+                   background: "transparent", "opaque", or "auto" (default)
 
         Returns:
             Tuple of (image_url, estimated_cost)
@@ -284,16 +288,18 @@ class GptImageClient:
         quality_param = params.get("quality", "standard")
         quality = {"standard": "medium", "hd": "high"}.get(quality_param, quality_param)
         size = params.get("size", "1024x1024")
+        background = params.get("background", "auto")  # "transparent", "opaque", or "auto"
 
-        logger.info(f"Generating GPT-Image-1 image with prompt: {prompt[:100]}...")
-        logger.info(f"Parameters: quality={quality}, size={size}")
+        logger.info(f"Generating GPT-Image-1.5 image with prompt: {prompt[:100]}...")
+        logger.info(f"Parameters: quality={quality}, size={size}, background={background}")
 
         try:
             response = await self.client.images.generate(
-                model="gpt-image-1",
+                model="gpt-image-1.5",
                 prompt=prompt,
                 size=size,
                 quality=quality,
+                background=background,
                 n=1,
             )
 
@@ -320,7 +326,7 @@ class GptImageClient:
             return f"file://{output_path}", cost
 
         except Exception as e:
-            logger.error(f"Failed to generate image with GPT-Image-1: {e}")
+            logger.error(f"Failed to generate image with GPT-Image-1.5: {e}")
             raise
 
     async def check_availability(self) -> bool:
@@ -330,7 +336,7 @@ class GptImageClient:
             True if API key is configured, False otherwise
         """
         if not self.configured:
-            logger.warning("GPT-Image-1 API not configured - missing OPENAI_API_KEY")
+            logger.warning("GPT-Image-1.5 API not configured - missing OPENAI_API_KEY")
             return False
 
         return True
