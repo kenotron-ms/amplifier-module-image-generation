@@ -2,7 +2,9 @@
 
 **Multi-provider AI image generation for Amplifier applications**
 
-Generate images using DALL-E, Imagen, or GPT-Image-1 through a unified interface with automatic fallback, cost tracking, and parallel generation support.
+Generate images using DALL-E, Imagen, or GPT-Image-1.5 through a unified interface with automatic fallback, cost tracking, and parallel generation support.
+
+> **Fork Notice**: This is a fork of [robotdad/amplifier-module-image-generation](https://github.com/robotdad/amplifier-module-image-generation) with enhanced support for GPT-Image-1.5 and alpha channel transparency.
 
 This module provides both a **standalone library interface** and an **Amplifier Tool protocol interface**, making it usable in two ways:
 - **As a library**: Direct Python import for use in any application
@@ -17,14 +19,14 @@ This module provides both a **standalone library interface** and an **Amplifier 
 For standalone library usage (no Amplifier integration):
 
 ```bash
-pip install git+https://github.com/robotdad/amplifier-module-image-generation
+pip install git+https://github.com/kenotron-ms/amplifier-module-image-generation
 ```
 
 Or add to your `pyproject.toml`:
 
 ```toml
 dependencies = [
-    "amplifier-module-image-generation @ git+https://github.com/robotdad/amplifier-module-image-generation"
+    "amplifier-module-image-generation @ git+https://github.com/kenotron-ms/amplifier-module-image-generation"
 ]
 ```
 
@@ -33,14 +35,14 @@ dependencies = [
 For use with Amplifier (includes tool protocol support):
 
 ```bash
-pip install "git+https://github.com/robotdad/amplifier-module-image-generation[tool]"
+pip install "git+https://github.com/kenotron-ms/amplifier-module-image-generation[tool]"
 ```
 
 Or add to your `pyproject.toml`:
 
 ```toml
 dependencies = [
-    "amplifier-module-image-generation[tool] @ git+https://github.com/robotdad/amplifier-module-image-generation"
+    "amplifier-module-image-generation[tool] @ git+https://github.com/kenotron-ms/amplifier-module-image-generation"
 ]
 ```
 
@@ -96,7 +98,8 @@ print(result.output)  # ToolResult output
 
 ## Features
 
-- **Multi-Provider Support**: DALL-E 3, Imagen 4, GPT-Image-1
+- **Multi-Provider Support**: DALL-E 3, Imagen 4, GPT-Image-1.5
+- **Alpha Channel Transparency**: GPT-Image-1.5 supports transparent backgrounds (RGBA PNG)
 - **Automatic Fallback**: Tries other providers if preferred fails
 - **Cost Tracking**: Estimates and tracks generation costs
 - **Dual Interface**: Use as library or Amplifier tool
@@ -298,13 +301,14 @@ The module automatically detects which APIs are configured and uses them.
 
 ## Supported Providers
 
-### GPT-Image-1 (OpenAI)
+### GPT-Image-1.5 (OpenAI)
 
-- **Model**: gpt-image-1
-- **Cost**: $0.02-$0.08 per image (quality-dependent)
+- **Model**: gpt-image-1.5
+- **Cost**: $0.016-$0.064 per image (quality-dependent, 20% cheaper than 1.0)
 - **Quality**: low, medium, high, auto
 - **Sizes**: 1024x1024, 1024x1792, 1792x1024
 - **Format**: Base64-encoded PNG
+- **Background**: transparent, opaque, auto (supports RGBA with alpha channel)
 
 ### DALL-E 3 (OpenAI)
 
@@ -398,8 +402,8 @@ for prompt in prompts:
         break
 ```
 
-**Current Pricing** (as of 2025):
-- GPT-Image-1: $0.02-$0.08 per image
+**Current Pricing** (as of 2026):
+- GPT-Image-1.5: $0.016-$0.064 per image (20% cheaper than 1.0)
 - DALL-E 3: $0.04-$0.08 per image
 - Imagen 4: $0.03-$0.04 per image
 
@@ -438,7 +442,7 @@ This module follows the [Amplifier module development patterns](https://github.c
 
 ## License
 
-MIT License - See [LICENSE](https://github.com/robotdad/amplifier-dev/blob/main/LICENSE) file.
+MIT License - See [LICENSE](https://github.com/kenotron-ms/amplifier-module-image-generation/blob/main/LICENSE) file.
 
 ---
 
