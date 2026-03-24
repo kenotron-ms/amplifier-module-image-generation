@@ -32,6 +32,7 @@ build-backend = "hatchling.build"
 
 [dependency-groups]
 dev = [
+    "pillow>=12.1.1",
     "pytest>=8.4.2",
     "pytest-asyncio>=1.2.0",
 ]

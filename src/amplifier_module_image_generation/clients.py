@@ -4,6 +4,7 @@ import asyncio
 import base64
 import logging
 import os
+from collections.abc import Sequence
 from pathlib import Path
 
 import aiohttp
@@ -30,7 +31,9 @@ class ImagenClient:
 
     def __init__(self):
         self.api_key = os.getenv("GOOGLE_API_KEY")
-        self.configured = bool(self.api_key and self.api_key.strip() and GENAI_AVAILABLE)
+        self.configured = bool(
+            self.api_key and self.api_key.strip() and GENAI_AVAILABLE
+        )
         self.client = None
         if self.configured and genai:
             try:
@@ -45,6 +48,8 @@ class ImagenClient:
         prompt: str,
         output_path: Path,
         params: dict | None = None,
+        reference_image_path: str | Path | None = None,
+        reference_image_paths: Sequence[str | Path] | None = None,
     ) -> tuple[str, float]:
         """Generate image using Google Gemini API.
 
@@ -54,6 +59,8 @@ class ImagenClient:
             prompt: Text description of the image to generate
             output_path: Path where the generated image should be saved
             params: Optional parameters
+            reference_image_path: Optional single reference image to guide generation
+            reference_image_paths: Optional list of reference images to guide generation
 
         Returns:
             Tuple of (image_url, estimated_cost)
@@ -62,7 +69,15 @@ class ImagenClient:
             ValueError: If API key not configured or service unavailable
         """
         if not self.configured or not self.client:
-            raise ValueError("Google API key not configured. Please set GOOGLE_API_KEY environment variable.")
+            raise ValueError(
+                "Google API key not configured. Please set GOOGLE_API_KEY environment variable."
+            )
+
+        if reference_image_path or reference_image_paths:
+            logger.warning(
+                "Reference images not yet supported by Imagen client. "
+                "Images will be generated from prompt only."
+            )
 
         output_path = output_path.expanduser()
         logger.info(f"Generating Google image with prompt: {prompt[:100]}...")
@@ -151,6 +166,8 @@ class DalleClient:
         prompt: str,
         output_path: Path,
         params: dict | None = None,
+        reference_image_path: str | Path | None = None,
+        reference_image_paths: Sequence[str | Path] | None = None,
     ) -> tuple[str, float]:
         """Generate an image using DALL-E 3.
 
@@ -158,6 +175,8 @@ class DalleClient:
             prompt: Text description of the image to generate
             output_path: Path where the generated image should be saved
             params: Optional parameters (quality, style, etc.)
+            reference_image_path: Optional single reference image to guide generation
+            reference_image_paths: Optional list of reference images to guide generation
 
         Returns:
             Tuple of (image_url, estimated_cost)
@@ -167,7 +186,15 @@ class DalleClient:
             Exception: For API or download errors
         """
         if not self.configured or not self.client:
-            raise ValueError("OpenAI API key not configured. Please set OPENAI_API_KEY environment variable.")
+            raise ValueError(
+                "OpenAI API key not configured. Please set OPENAI_API_KEY environment variable."
+            )
+
+        if reference_image_path or reference_image_paths:
+            logger.warning(
+                "Reference images not yet supported by DALL-E 3 client. "
+                "Images will be generated from prompt only."
+            )
 
         output_path = output_path.expanduser()
         params = params or {}
@@ -192,7 +219,9 @@ class DalleClient:
             if not image_url:
                 raise ValueError("No image URL returned from DALL-E API")
 
-            logger.info(f"Image generated successfully. Downloading from: {image_url[:80]}...")
+            logger.info(
+                f"Image generated successfully. Downloading from: {image_url[:80]}..."
+            )
 
             await self._download_image(image_url, output_path)
 
@@ -239,14 +268,14 @@ class DalleClient:
 
 class GptImageClient:
     """Client for OpenAI GPT-Image-1.5 API.
-    
+
     Supports transparent backgrounds via background="transparent" parameter.
     """
 
     api_name = "gptimage"
 
     COST_PER_IMAGE = {
-        "low": 0.016,   # 20% cheaper than gpt-image-1
+        "low": 0.016,  # 20% cheaper than gpt-image-1
         "medium": 0.032,
         "high": 0.064,
         "auto": 0.032,
@@ -264,6 +293,8 @@ class GptImageClient:
         prompt: str,
         output_path: Path,
         params: dict | None = None,
+        reference_image_path: str | Path | None = None,
+        reference_image_paths: Sequence[str | Path] | None = None,
     ) -> tuple[str, float]:
         """Generate an image using GPT-Image-1.5.
 
@@ -272,6 +303,8 @@ class GptImageClient:
             output_path: Path where the generated image should be saved
             params: Optional parameters (quality, size, background)
                    background: "transparent", "opaque", or "auto" (default)
+            reference_image_path: Optional single reference image to guide generation
+            reference_image_paths: Optional list of reference images to guide generation
 
         Returns:
             Tuple of (image_url, estimated_cost)
@@ -281,17 +314,37 @@ class GptImageClient:
             Exception: For API or download errors
         """
         if not self.configured or not self.client:
-            raise ValueError("OpenAI API key not configured. Please set OPENAI_API_KEY environment variable.")
+            raise ValueError(
+                "OpenAI API key not configured. Please set OPENAI_API_KEY environment variable."
+            )
 
         output_path = output_path.expanduser()
         params = params or {}
         quality_param = params.get("quality", "standard")
         quality = {"standard": "medium", "hd": "high"}.get(quality_param, quality_param)
         size = params.get("size", "1024x1024")
-        background = params.get("background", "auto")  # "transparent", "opaque", or "auto"
+        background = params.get(
+            "background", "auto"
+        )  # "transparent", "opaque", or "auto"
 
+        # Collect all reference images
+        ref_images = []
+        if reference_image_path:
+            ref_images.append(Path(reference_image_path))
+        if reference_image_paths:
+            ref_images.extend([Path(p) for p in reference_image_paths])
+
+        # If we have reference images, use Responses API with image_generation tool
+        if ref_images:
+            return await self._generate_with_references(
+                prompt, output_path, quality or "auto", size, background, ref_images
+            )
+
+        # Otherwise, use simple images.generate endpoint
         logger.info(f"Generating GPT-Image-1.5 image with prompt: {prompt[:100]}...")
-        logger.info(f"Parameters: quality={quality}, size={size}, background={background}")
+        logger.info(
+            f"Parameters: quality={quality}, size={size}, background={background}"
+        )
 
         try:
             response = await self.client.images.generate(
@@ -318,7 +371,9 @@ class GptImageClient:
 
             output_path.write_bytes(image_bytes)
 
-            cost = self.COST_PER_IMAGE.get(quality if quality else "auto", self.COST_PER_IMAGE["auto"])
+            cost = self.COST_PER_IMAGE.get(
+                quality if quality else "auto", self.COST_PER_IMAGE["auto"]
+            )
 
             logger.info(f"Image saved to: {output_path}")
             logger.info(f"Estimated cost: ${cost:.3f}")
@@ -327,6 +382,116 @@ class GptImageClient:
 
         except Exception as e:
             logger.error(f"Failed to generate image with GPT-Image-1.5: {e}")
+            raise
+
+    async def _generate_with_references(
+        self,
+        prompt: str,
+        output_path: Path,
+        quality: str,
+        size: str,
+        background: str,
+        ref_images: list[Path],
+    ) -> tuple[str, float]:
+        """Generate image using Responses API with reference images.
+
+        Args:
+            prompt: Text description
+            output_path: Where to save the image
+            quality: Quality setting (low/medium/high/auto)
+            size: Image size (e.g., "1024x1024")
+            background: Background setting (transparent/opaque/auto)
+            ref_images: List of reference image paths
+
+        Returns:
+            Tuple of (image_url, estimated_cost)
+
+        Raises:
+            Exception: For API or file errors
+        """
+        logger.info(
+            f"Generating GPT-Image-1.5 image with {len(ref_images)} reference image(s)..."
+        )
+        logger.info(f"Prompt: {prompt[:100]}...")
+        logger.info(
+            f"Parameters: quality={quality}, size={size}, background={background}"
+        )
+
+        # Build content array with prompt text + reference images
+        content = [{"type": "input_text", "text": prompt}]
+
+        # Add reference images as base64-encoded data URLs
+        for idx, img_path in enumerate(ref_images):
+            if not img_path.exists():
+                raise ValueError(f"Reference image not found: {img_path}")
+
+            # Read and encode image
+            img_bytes = img_path.read_bytes()
+            img_b64 = base64.b64encode(img_bytes).decode("utf-8")
+
+            # Detect MIME type from extension
+            ext = img_path.suffix.lower()
+            mime_type = {
+                ".jpg": "image/jpeg",
+                ".jpeg": "image/jpeg",
+                ".png": "image/png",
+                ".gif": "image/gif",
+                ".webp": "image/webp",
+            }.get(ext, "image/png")
+
+            content.append(
+                {
+                    "type": "input_image",
+                    "image_url": f"data:{mime_type};base64,{img_b64}",
+                }
+            )
+            logger.info(f"  Added reference image {idx + 1}: {img_path.name}")
+
+        # Call Responses API with image_generation tool
+        if not self.client:
+            raise ValueError("OpenAI client not initialized")
+
+        try:
+            response = await self.client.responses.create(
+                model="gpt-5",
+                input=[{"role": "user", "content": content}],
+                tools=[{"type": "image_generation"}],
+            )
+
+            # Extract generated image from output
+            if not response.output:
+                raise ValueError("No output in response")
+
+            # Find image_generation_call in output
+            image_calls = [
+                output for output in response.output if output.type == "image_generation_call"
+            ]
+
+            if not image_calls:
+                raise ValueError("No image_generation_call in response output")
+
+            b64_data = image_calls[0].result
+            if not b64_data:
+                raise ValueError("No base64 image data in image_generation_call result")
+
+            logger.info(
+                "Image generated successfully with reference images. Decoding base64 data..."
+            )
+
+            image_bytes = base64.b64decode(b64_data)
+
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_bytes(image_bytes)
+
+            cost = self.COST_PER_IMAGE.get(quality, self.COST_PER_IMAGE["auto"])
+
+            logger.info(f"Image saved to: {output_path}")
+            logger.info(f"Estimated cost: ${cost:.3f}")
+
+            return f"file://{output_path}", cost
+
+        except Exception as e:
+            logger.error(f"Failed to generate image with references: {e}")
             raise
 
     async def check_availability(self) -> bool:

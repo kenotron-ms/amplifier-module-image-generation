@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from collections.abc import Sequence
 from pathlib import Path
 
 from .clients import DalleClient
@@ -36,7 +37,9 @@ class ImageGenerator:
         # Register capabilities if coordinator available
         if coordinator:
             coordinator.register_capability("image_generation.orchestrator", self)
-            coordinator.register_capability("image_generation.providers", list(self.clients.keys()))
+            coordinator.register_capability(
+                "image_generation.providers", list(self.clients.keys())
+            )
 
     async def generate(
         self,
@@ -45,6 +48,8 @@ class ImageGenerator:
         *,
         preferred_api: str | None = None,
         params: dict | None = None,
+        reference_image_path: str | Path | None = None,
+        reference_image_paths: Sequence[str | Path] | None = None,
     ) -> ImageResult:
         """Generate an image from a text prompt.
 
@@ -53,6 +58,8 @@ class ImageGenerator:
             output_path: Path where the generated image should be saved
             preferred_api: Optional preferred API to try first (imagen, dalle, gptimage)
             params: Optional generation parameters (quality, size, style)
+            reference_image_path: Optional single reference image to guide generation
+            reference_image_paths: Optional list of reference images (up to 14) to guide generation
 
         Returns:
             ImageResult with generation outcome
@@ -65,7 +72,9 @@ class ImageGenerator:
 
         # Determine API order
         if preferred_api and preferred_api in self.clients:
-            api_order = [preferred_api] + [api for api in self.clients.keys() if api != preferred_api]
+            api_order = [preferred_api] + [
+                api for api in self.clients.keys() if api != preferred_api
+            ]
         else:
             api_order = list(self.clients.keys())
 
@@ -86,7 +95,13 @@ class ImageGenerator:
             # Try generation
             try:
                 logger.info(f"Attempting generation with {api_name}")
-                url, cost = await client.generate(prompt, output_path, params)
+                url, cost = await client.generate(
+                    prompt,
+                    output_path,
+                    params,
+                    reference_image_path=reference_image_path,
+                    reference_image_paths=reference_image_paths,
+                )
 
                 self.total_cost += cost
 
@@ -152,7 +167,11 @@ class ImageGenerator:
                 continue
 
             output_path = output_dir / f"{illustration_id}-{api_name}.png"
-            tasks.append(self._generate_single(client, api_name, prompt, illustration_id, output_path, {}))
+            tasks.append(
+                self._generate_single(
+                    client, api_name, prompt, illustration_id, output_path, {}
+                )
+            )
 
         if not tasks:
             logger.error("No APIs available for generation")
