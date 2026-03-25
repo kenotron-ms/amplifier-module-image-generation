@@ -20,9 +20,16 @@ Tool Usage (Via Amplifier):
     ... })
 """
 
+# Amplifier module metadata
+__amplifier_module_type__ = "tool"
+
+import logging
+from typing import Any
+
+from amplifier_core import ModuleCoordinator
+
 from .generator import ImageGenerator
-from .models import ImageGenerationError
-from .models import ImageResult
+from .models import ImageGenerationError, ImageResult
 from .tool import ImageGenerationTool
 
 __version__ = "0.1.0"
@@ -31,4 +38,27 @@ __all__ = [
     "ImageResult",
     "ImageGenerationError",
     "ImageGenerationTool",
+    "mount",
 ]
+
+logger = logging.getLogger(__name__)
+
+
+async def mount(coordinator: ModuleCoordinator, config: dict[str, Any] | None = None) -> None:
+    """Mount image-generation tool.
+
+    Args:
+        coordinator: Module coordinator for registering tools
+        config: Optional configuration
+
+    Returns:
+        None
+
+    Raises:
+        ImportError: If required packages are not installed
+    """
+    # Create and register tool
+    tool = ImageGenerationTool()
+    await coordinator.mount("tools", tool, name=tool.name)
+
+    logger.info("Mounted image-generation tool")
